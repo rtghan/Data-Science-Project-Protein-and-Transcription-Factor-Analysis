@@ -1,0 +1,688 @@
+---
+title: "Analysis of Proteins and Transcription Factors"
+author: "Chris (Jechang) Oh, Olivia (Ximei) Lin, Joseph (Cheng Peng), and Ethan Chan"
+subtitle: "A close examination of protein levels and their correlation among various experimental conditions"
+date: December 8, 2022
+output: 
+  beamer_presentation:
+    theme: "Pittsburgh"
+    colortheme: "crane"
+    fonttheme: "structurebold"
+    slide_level: 2
+classoption: "aspectratio=169"
+fontsize: 10pt
+urlcolor: blue
+---
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+file <- read_csv('STA130_Course_Project.csv')
+```
+
+## Introduction
+What is the data?
+
+1. Data observations consist of 22 AP-1 transcription factors (causes) and 4 phenotype proteins (outcomes), resulting in a total of 26 variables
+
+2. Moreover, the data also contains 4 additional experimental conditions: drug ID, dosage ID, time, and repetitions
+
+---
+
+## Objectives
+We will examine and analyze the following questions:
+
+**Q1.** Do protein levels in experimental condition $x$ change over time $t$?
+
+**Q2.** Are protein levels at time t different between experimental conditions $x_{1}$ and $x_{2}$?
+
+**Q3.** At time $t$ in experimental condition $x$, what is the relationship between different proteins?
+
+**Q4.** (Meta Analysis) What patterns can we observe from the results of the questions themselves?
+
+---
+
+## Q1 Data Summary
+
+**Purpose of Data**: To examine and analyze how protein levels in experimental condition x change over time t.
+
+- The experimental conditions we chose to analyse were the tests using drug ID 1 (Vem), with dosage IDs 1 (0uM), 3 (0.316uM), and 5 (3.16uM). 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+data <- read_csv('STA130_Course_Project.csv')
+data <- data %>% mutate(time = case_when(
+  timepoint_id == 1 ~ 0.5,
+  timepoint_id == 2 ~ 2,
+  timepoint_id == 3 ~ 6,
+  timepoint_id == 4 ~ 15,
+  timepoint_id == 5 ~ 24,
+  timepoint_id == 6 ~ 72,
+  timepoint_id == 7 ~ 120
+))
+```
+
+```{r}
+MiTFg_data <- data %>%
+  filter((dose_id == 1 | dose_id == 3 | dose_id == 5) & drug_id == 1) %>%
+  select(MiTFg, timepoint_id, Timepoint, drug_id, Drugs, dose_id,
+  Doses, time)
+```
+
+- The relevant data for the MiTFg protein was filtered and stored in a variable called ‘MiTFg_data’. In addition, an extra variable, `time`, was mutated from the original data to represent the timepoint as a numeric value.
+
+---
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# set our constants
+timepoints <- 7 # 7 timepoints means 6 differences in time (from timepoint 1 to x)
+time_deltas <- c(1.5, 5.5, 14.5, 23.5, 71.5, 119.5)
+time_ids <- 2:7
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# hold the p values and test stats we will be calculating
+p_values_1 <- rep(NA, 6)
+test_stats_1 <- rep(NA, 6)
+set.seed(975)
+
+# select the dosage level we are testing for (drug id has already been filtered)
+test_data <- MiTFg_data %>% filter(dose_id == 1)
+
+for(j in 2:timepoints){
+  # Two Sample Hypothesis Test between timepoints 1 and x
+  time_data <- test_data %>% filter(timepoint_id == 1 | timepoint_id == j)
+  
+  # calculate test stat by taking the difference in mean value of MiTFg at timepoints 1 and x
+  test_stat <- time_data %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+  test_stat <- as.numeric(test_stat)
+  test_stats_1[j - 1] <- test_stat
+  
+  # simulate data for H_0 (protein levels are the same)
+  N <- 1000
+  simulated_values <- rep(NA, N)
+  
+  for(i in 1:N){
+    # randomly distribute the values of MiTFg
+    simdata <- time_data %>% mutate(MiTFg = sample(MiTFg))
+    
+    # calculate test stat
+    sim_stat <- simdata %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+    
+    # save the test stat into the distribution
+    simulated_values[i] <- as.numeric(sim_stat)
+  }
+  
+  sim_distribution <- tibble(diff = simulated_values)
+  more_extreme <- sim_distribution %>% filter(abs(diff) >= abs(test_stat)) %>% summarize(n())
+  p_val <- as.numeric(more_extreme / N)
+  p_values_1[j - 1] <- p_val
+}
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# hold p values and test stats
+p_values_2 <- rep(NA, 6)
+test_stats_2 <- rep(NA, 6)
+set.seed(975)
+
+# select the dosage level we are testing for (drug id has already been filtered)
+test_data <- MiTFg_data %>% filter(dose_id == 3)
+
+for(j in 2:timepoints){
+  # Two Sample Hypothesis Test between timepoints 1 and x
+  time_data <- test_data %>% filter(timepoint_id == 1 | timepoint_id == j)
+  
+  # calculate test stat by taking the difference in mean value of MiTFg at timepoints 1 and x
+  test_stat <- time_data %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+  test_stat <- as.numeric(test_stat)
+  test_stats_2[j - 1] <- test_stat
+  
+  # simulate data for H_0 (protein levels are the same)
+  N <- 1000
+  simulated_values <- rep(NA, N)
+  
+  for(i in 1:N){
+    # randomly distribute the values of MiTFg
+    simdata <- time_data %>% mutate(MiTFg = sample(MiTFg))
+    
+    # calculate test stat
+    sim_stat <- simdata %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+    
+    # save the test stat into the distribution
+    simulated_values[i] <- as.numeric(sim_stat)
+  }
+  
+  sim_distribution <- tibble(diff = simulated_values)
+  more_extreme <- sim_distribution %>% filter(abs(diff) >= abs(test_stat)) %>% summarize(n())
+  p_val <- as.numeric(more_extreme / N)
+  p_values_2[j - 1] <- p_val
+}
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# hold p vals and test stats
+p_values_3 <- rep(NA, 6)
+test_stats_3 <- rep(NA, 6)
+set.seed(975)
+
+# select the dosage level we are testing for (drug id has already been filtered)
+test_data <- MiTFg_data %>% filter(dose_id == 5)
+
+for(j in 2:timepoints){
+  # Two Sample Hypothesis Test between timepoints 1 and x
+  time_data <- test_data %>% filter(timepoint_id == 1 | timepoint_id == j)
+  
+  # calculate test stat by taking the difference in mean value of MiTFg at timepoints 1 and x
+  test_stat <- time_data %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+  test_stat <- as.numeric(test_stat)
+  test_stats_3[j - 1] <- test_stat
+  
+  # simulate data for H_0 (protein levels are the same)
+  N <- 1000
+  simulated_values <- rep(NA, N)
+  
+  for(i in 1:N){
+    # randomly distribute the values of MiTFg
+    simdata <- time_data %>% mutate(MiTFg = sample(MiTFg))
+    
+    # calculate test stat
+    sim_stat <- simdata %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+    
+    # save the test stat into the distribution
+    simulated_values[i] <- as.numeric(sim_stat)
+  }
+  
+  sim_distribution <- tibble(diff = simulated_values)
+  more_extreme <- sim_distribution %>% filter(abs(diff) >= abs(test_stat)) %>% summarize(n())
+  p_val <- as.numeric(more_extreme / N)
+  p_values_3[j - 1] <- p_val
+}
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+MiTFg_results <- tibble(time_id=c(time_ids, time_ids, time_ids), time_delta=c(time_deltas, time_deltas, time_deltas), MiTFg_delta=c(test_stats_1, test_stats_2, test_stats_3), p_values=c(p_values_1, p_values_2, p_values_3), dose_id=c(rep(1, 6), rep(3, 6), rep(5, 6)))
+```
+
+## Q1 Statistical Method: Two Sample Hypothesis Test
+
+To understand whether or not protein levels at two different time points were **significantly** different, we employed a 2-sample hypothesis test on MiTFg. Before the test, we set an alpha-significance level of $\alpha = 0.05$.
+
+:::columns
+::::column
+
+### Null Hypothesis
+- $H_0$: Protein levels in experimental condition do not change over time from time point t.
+
+### Alternative Hypothesis
+- $H_1$: Protein levels in experimental condition change over time from time point t.
+
+::::
+::::column
+
+### Example of  our Two Sample Hypothesis Test (Dose ID 1, between timepoints 1 and 5)
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# select the dosage level we are testing for (drug id has already been filtered)
+test_data <- MiTFg_data %>% filter(dose_id == 1)
+
+# Two Sample Hypothesis Test between timepoints 1 and x
+time_data <- test_data %>% filter(timepoint_id == 1 | timepoint_id == 5)
+
+# calculate test stat by taking the difference in mean value of MiTFg at timepoints 1 and x
+test_stat <- time_data %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+test_stat <- as.numeric(test_stat)
+
+
+# simulate data for H_0 (protein levels are the same)
+N <- 1000
+simulated_values <- rep(NA, N)
+
+for(i in 1:N){
+  # randomly distribute the values of NF_kappaB (which is like assuming H_0, since you can only do this if you assume the values of MiTFg stay roughly the same across both timepoints)
+  simdata <- time_data %>% mutate(MiTFg = sample(MiTFg))
+  
+  # calculate test stat
+  sim_stat <- simdata %>% group_by(timepoint_id) %>% summarise(means=mean(MiTFg), .groups="drop") %>% summarise(stat=diff(means))
+  
+  # save the test stat into the distribution
+  simulated_values[i] <- as.numeric(sim_stat)
+}
+
+sim_distribution <- tibble(diff = simulated_values)
+more_extreme <- sim_distribution %>% filter(abs(diff) >= abs(test_stat)) %>% summarize(n())
+p_val <- as.numeric(more_extreme / N)
+```
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE, fig.width=3, fig.height=1.7}
+
+sim_distribution %>% ggplot(aes(x=diff)) + geom_histogram(bins=20) + geom_vline(aes(xintercept=test_stat)) + labs(title="Sampling Distribution", x="Difference in Mean MiTFg Value", y="Count")
+```
+```{r, echo=FALSE, size="tiny"}
+test_stat
+```
+::::
+:::
+---
+
+## Q1 Results
+
+**The testing was repeated for all time points and our chosen experimental conditions:**
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE, fig.width=11, fig.height=9, fig.show="hold", out.width="60%", fig.align='center'}
+
+MiTFg_results %>% ggplot(aes(x=time_delta, y=MiTFg_delta, color=dose_id, size=p_values)) + geom_point(alpha=0.9) + labs(title="Changes in MiTFg Levels over Time for 3 Dosages of Vem", x="Time Passed Since First Observation (Hours)", y="Change in MiTFg Level", size="p-values", color="Dose ID") + theme(plot.title = element_text(hjust = 0.5, size=20), text = element_text(size=20))
+
+```
+
+---
+
+## Q1 Results
+
+1. We observe that the p-values are significantly *above* the alpha-significance level for when the dose ID is 1, and the time passed is still on the lower end, meaning we **fail to reject the null hypothesis**, and conclude that there was no significant change in MiTFg levels. However, we note that for when the dose ID is 3 or 5, or the time passed is greater, the p-values are *below* the alpha-significance level, meaning we **reject the null hypothesis** and conclude that there was a significant change in MiTFg level for that experimental condition across time t. 
+
+2. As time grows, and as dosage increases, the change in MiTFg also increases. Furthermore, we note that these are statistically significant changes, as the p-value is near 0, so it seems like dosage and time are factors that have a strong negative effect on the level of MiTFg, which will be useful knowledge in affecting the balance of proteins and cellular homeostasis.
+
+---
+
+## Q2 Data Summary
+
+**Purpose of Data**: To examine and analyze whether protein levels at time t are different between experimental conditions $x_1$ and $x_2$.
+
+- The data was cleaned to focus specifically on the MiTFg protein. First, the data was filtered at time point 0.5h, and the experimental conditions were drug ID 1, dose ID 2 ($x_1$), and drug ID 1, dose ID 3 ($x_2$).
+
+```{r}
+MiTFg_data <- data %>% 
+  filter(timepoint_id == 1) %>% 
+  select(MiTFg, timepoint_id, Timepoint, drug_id, Drugs, dose_id, Doses)
+
+MiTFg_data <- data %>% 
+  filter(drug_id == 1 & dose_id == 2 | drug_id == 1 & dose_id == 3) %>% 
+  mutate(exp_cond = case_when(
+  drug_id == 1 & dose_id == 2 ~ "x1",
+  drug_id == 1 & dose_id == 3 ~ "x2"
+))
+```
+---
+
+## Q2 Statistical Methods
+
+With a significance level of $\alpha = 0.05$, we will run a two sample mean hypothesis test to examine the difference in MiTFg levels under the two different experimental conditions.
+
+### Null Hypothesis
+
+- There is no mean difference at time point 0.5h of protein levels in condition $x_1$ and condition $x_2$
+
+### Alternative Hypothesis
+
+- There is a mean difference at time point 0.5h of protein levels in condition $x_1$ and condition $x_2$
+
+---
+
+## Q2 Statistical Methods
+
+Assuming the null hypothesis is true, we calculate the **test statistic** and simulate a sampling distribution at time point 0.5h (left). Then, we generate another sampling distribution with the same process at time point 120h (right), with the experimental conditions listed above
+
+- A comparison between the first and last time points within a drug would show the greatest differentiation, and allow more data to be analyzed. The second distribution has similar null and alternative hypotheses as the first.
+
+```{r, echo=FALSE, include=TRUE}
+MiTFg_data <- data %>% 
+  filter(timepoint_id == 1) %>% 
+  select(MiTFg, timepoint_id, Timepoint, drug_id, Drugs, dose_id, Doses)
+
+#Two Sample hypothesis test between x1 and x2
+testing_data <- MiTFg_data %>%
+  filter(drug_id == 1 & dose_id == 2 | drug_id == 1 & dose_id == 3) %>%
+  mutate(exp_cond = case_when(
+  drug_id == 1 & dose_id == 2 ~ "x1",
+  drug_id == 1 & dose_id == 3 ~ "x2"
+))
+
+#calculate test stat by taking the difference in mean value of MiTFg at condition 1 and 2
+test_stat1 <- testing_data %>%
+  group_by(exp_cond) %>% 
+  summarise(means = mean(MiTFg), .groups = "drop") %>%
+  summarise(stat=diff(means))
+test_stat1 <- as.numeric(test_stat1)
+
+set.seed(990)
+N <- 1000
+simulated_values <- rep(NA, N)
+
+for (i in 1:N){
+  simdata <-  testing_data %>% mutate(MiTFg = sample(MiTFg))
+  
+  sim_stat <- simdata %>% group_by(drug_id, dose_id) %>% summarise(means = mean(MiTFg), .groups = "drop")  %>% 
+summarise(stat = diff(means))
+  
+  simulated_values[i] <- as.numeric(sim_stat)
+}
+sim_distribution <- tibble(diff = simulated_values)
+
+histogram0.5 <- sim_distribution %>% ggplot(aes(x=diff)) + geom_histogram(bins=20) + geom_vline(aes(xintercept=test_stat1)) + labs(x="Difference in Mean MiTFg Value", y="Count") + ggtitle("Observation of Mean Differences in MiTFg at 0.5h") + theme(plot.title = element_text(hjust = 0.5, size=10), text = element_text(size=10))
+
+MiTFg_data <- data %>% filter(timepoint_id == 7) %>% select(MiTFg, timepoint_id, Timepoint, drug_id, Drugs, dose_id, Doses)
+```
+```{r, echo=FALSE, include=TRUE}
+#Two Sample hypothesis test between x1 and x2
+testing_data <- MiTFg_data %>% filter(drug_id == 1 & dose_id == 2 | drug_id == 1 & dose_id == 3) %>% mutate(exp_cond = case_when(
+  drug_id == 1 & dose_id == 2 ~ "x1",
+  drug_id == 1 & dose_id == 3 ~ "x2"
+))
+
+#calculate test stat by taking the difference in mean value of MiTFg at condition 1 and 2
+test_stat2 <- testing_data %>% group_by(exp_cond) %>% summarise(means = mean(MiTFg), .groups = "drop") %>% summarise(stat=diff(means))
+test_stat2 <- as.numeric(test_stat2)
+```
+
+```{r, echo=FALSE, include=TRUE}
+set.seed(990)
+N <- 1000
+simulated_values <- rep(NA, N)
+
+for (i in 1:N){
+  simdata <-  testing_data %>% mutate(MiTFg = sample(MiTFg))
+  
+  sim_stat <- simdata %>% group_by(drug_id, dose_id) %>% summarise(means = mean(MiTFg), .groups = "drop")  %>% 
+summarise(stat = diff(means))
+  
+  simulated_values[i] <- as.numeric(sim_stat)
+}
+sim_distribution <- tibble(diff = simulated_values)
+```
+
+```{r, echo=FALSE, include=TRUE}
+histogram_120h <- sim_distribution %>% ggplot(aes(x=diff)) + geom_histogram(bins=20) + geom_vline(aes(xintercept=test_stat2)) + labs(x="Difference in Mean MiTFg Value", y="Count") + ggtitle("Observation of Mean Differences in MiTFg at 120h") + theme(plot.title = element_text(hjust = 0.5, size=10), text = element_text(size=10))
+```
+
+
+:::columns
+::::column
+
+```{r, fig.height= 3, fig.width= 6, echo=FALSE, message=FALSE}
+histogram0.5
+```
+
+::::
+::::column
+
+```{r,  fig.height=3 , fig.width=6, echo=FALSE, message=FALSE}
+histogram_120h
+```
+::::
+:::
+
+:::columns
+::::column
+
+
+```{r, echo=FALSE, size="tiny"}
+test_stat1
+```
+
+::::
+::::column
+
+```{r, echo=FALSE, size="tiny"}
+test_stat2
+```
+::::
+:::
+
+---
+
+## Q2 Results
+
+The table summarizes the computed p-values, along with additional data computed from different experimental conditions not shown above.
+
+**$x_1$: drug ID = 1, dose ID = 2. $x_2$: drug ID = 1, dose ID = 3**
+
+|Conditions | Time Point      | P-value |
+|-----------|-----------------|--------|
+$x_1$ vs. $x_2$ | 0.5 h |  0 < $\alpha$ |
+$x_1$ vs. $x_2$ | 120 h |  0 < $\alpha$ |
+
+**$x_1$: drug ID = 1, dose ID = 4. $x_2$: drug ID = 2, dose ID = 4**
+
+|Conditions | Time Point      | P-value |
+|----------|-----------------|---------|
+| $x_1$ vs. $x_2$ | 0.5 h |  0 < $\alpha$ |
+| $x_1$ vs. $x_2$ | 120 h |  0 < $\alpha$ |
+
+---
+
+## Q2 Results
+
+- Among all observations, the p-value is computed to be either 0 or extremely close to 0. This means we **reject the null hypothesis** and conclude that there is a mean difference in protein levels between the experimental conditions tested.
+
+- Since there is a mean difference in MiTFg levels between the experimental conditions tested, this means that cellular homeostasis is impacted by this change as the balance of protein cells changes. Because of this, it is possible that non-deleterious cellular states could transition into deleterious states or vice versa. Thus, based on the results, the experimental conditions could be adjusted to maintain homeostasis.
+
+---
+
+## Q3 Data Summary
+**Purpose of Data**: To find the relationship between the 4 different proteins at time t in experimental condition x.
+
+- Observed proteins at time point 5, drug ID 2, and dose ID 3
+
+```{r}
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) -> new_file
+```
+
+- A portion of the data is extracted according to the above experimental conditions and stored in a variable called 'new_file'. In context, the experimental conditions are values that are filtered in the R code, and the 4 proteins are MiTFg, AXL, NGFR, and Sox10.
+
+---
+
+## Q3 Statistical Methods
+**Without bootstrapping**
+
+- Each protein was paired with another protein. Then, at the experimental conditions chosen, the two proteins were regressed as a scatter plot to observe their relationship, correlation coefficient, the slope of the linear model, and its corresponding p-value.
+
+| **Protein Pair** | **Correlation Coefficient** | **Slope** | **P-value** |
+|------------------|-----------------------------|-----------|-------------|
+|    Sox10/AXL |         -0.127       | -0.08 | 1.08e-27|
+|    NGFR/AXL |         0.302       | 0.35 | 1.09e-153|
+|    MiTFg/AXL |         0.121       | 0.11 | 4.00e-25|
+|    MiTFg/Sox10 |         0.086       | 0.13 | 2.42e-13|
+|    MiTFg/NGFR |         0.075      | 0.06 | 1.39e-10|
+|    Sox10/NGFR |         0.281      | 0.55 | 2.50e-132|
+
+---
+
+## Q3 Statistical Methods
+**6 graphs were produced to display the relationship between different proteins.**
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE, fig.width=3.5, fig.height=1.75, fig.show="hold", out.width="33.33333%", fig.align = 'center'}
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=Sox10, y=AXL)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="Sox10 Protein", y="AXL Protein") +
+  ggtitle("Relationship Between Sox10 and AXL Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+  
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=NGFR, y=AXL)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="NGFR Protein", y="AXL Protein") +
+  ggtitle("Relationship Between NGFR and AXL Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=MiTFg, y=AXL)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="MiTFg Protein", y="AXL Protein") +
+  ggtitle("Relationship Between MiTFg and AXL Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=MiTFg, y=Sox10)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="MiTFg Protein", y="Sox10 Protein") +
+  ggtitle("Relationship Between MiTFg and Sox10 Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=MiTFg, y=NGFR)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="MiTFg Protein", y="NGFR Protein") +
+  ggtitle("Relationship Between MiTFg and NGFR Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+
+file %>%
+  filter(timepoint_id == 5 & drug_id == 2 & dose_id == 3) %>%
+  ggplot(aes(x=NGFR, y=Sox10)) + geom_point() + 
+  geom_smooth(method=lm, se=FALSE) + 
+  labs(x="NGFR Protein", y="Sox10 Protein") +
+  ggtitle("Relationship Between NGFR and Sox10 Proteins") +
+  theme(plot.title = element_text(hjust = 0.5, size=8), text = element_text(size=8))
+```
+
+---
+
+## Q3 Statistical Methods
+**With Bootstrapping**
+
+- Afterwards, each protein pair sample was bootstrapped, with sample sizes of 500 over 1000 iterations. With these bootstrap samples, a **95% confidence interval** was produced to calculate each correlation coefficient.
+
+
+| **Protein Pair** | **Confidence Interval (95%)** |
+|------------------|-------------------------------|
+|    Sox10/AXL |         (-0.1987, -0.0565)       |
+|    NGFR/AXL |         (0.2374, 0.3673)       |
+|    MiTFg/AXL |         (0.0498, 0.1869)     |
+|    MiTFg/Sox10 |        (0.0170, 0.1522)    |
+|    MiTFg/NGFR |         (0.0061, 0.1468)      |
+|    Sox10/NGFR |         (0.2374, 0.3673)      |
+
+---
+
+## Q3 Results
+
+1. Based on the results of samples that were not bootstrapped, it appears all of the proteins have a weak correlation at the experimental conditions. Among the proteins, NGFR and AXL have the strongest correlation of 0.302, whereas MiTFg and NGFT have the weakest correlation of 0.075. The **null hypothesis** for these set of results would have been that there is _no relationship_ between each protein pair. However, the p-values are extremely close to 0, which allows us **reject** the null hypothesis, concluding that there is a relationship between each protein pair.
+
+2. The bootstrapped samples should be studied more carefully, as they have been sampled 1000 times to accurately approximate the population. All confidence intervals tend to be centered around 0, which supports the linear regression models in the previous slides, where the linear model appears to be widely scattered, without any strong correlation. Thus, we have 95% confidence the true correlation coefficient parameter is contained in the computed interval.
+
+---
+
+## Meta Question
+
+**How do the observed correlations of NGFR and AXL (one pair), and MiTFg and Sox10 (one pair) evolve over time under the different experimental conditions?**
+
+- In addition to time as the independent variable and the correlation coefficient as the dependent variable, the drug dosage condition was added as an _extra variable to consider different experimental conditions_.
+
+- The graphs on the next slide shows correlation as a function of time, with dosage as an extra variable, whose level is indicated by colour. The dosage levels range from 1 to 5, which covers all levels in the original data.
+
+---
+
+## Meta Question
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+data <- read_csv('STA130_Course_Project.csv')
+data <- data %>% mutate(time = case_when(
+  timepoint_id == 1 ~ 0.5,
+  timepoint_id == 2 ~ 2,
+  timepoint_id == 3 ~ 6,
+  timepoint_id == 4 ~ 15,
+  timepoint_id == 5 ~ 24,
+  timepoint_id == 6 ~ 72,
+  timepoint_id == 7 ~ 120
+))
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+MiTFg_Sox10 <- data %>% filter(drug_id == 1) %>% select(MiTFg, Sox10, timepoint_id, Timepoint, drug_id, Drugs, dose_id, Doses, time)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+data <- read_csv('STA130_Course_Project.csv')
+data <- data %>% mutate(time = case_when(
+  timepoint_id == 1 ~ 0.5,
+  timepoint_id == 2 ~ 2,
+  timepoint_id == 3 ~ 6,
+  timepoint_id == 4 ~ 15,
+  timepoint_id == 5 ~ 24,
+  timepoint_id == 6 ~ 72,
+  timepoint_id == 7 ~ 120
+))
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+NGFR_AXL <- data %>% filter(drug_id == 1) %>% select(NGFR, AXL, timepoint_id, Timepoint, drug_id, Drugs, dose_id, Doses, time)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE, fig.width=3, fig.height=2, fig.show="hold", out.width="49%"}
+timepoints <- 7
+dosages <- 5
+correlations <- rep(NA, 35)
+dosages <- c(rep(1, 7), rep(2, 7), rep(3, 7), rep(4, 7), rep(5, 7))
+times <- rep(1:7, 5)
+
+for(i in 1:5){
+  for(j in 1:7){
+    cor_data <- NGFR_AXL %>% filter(dose_id == i & timepoint_id == j)
+
+    correlations[7 * (i - 1) + (j)] <- cor(cor_data$NGFR, cor_data$AXL)
+  }
+}
+
+NGFR_AXL_cors <- tibble(correlation=correlations, Dosage=dosages, timepoint=times)
+
+NGFR_AXL_cors %>% ggplot(aes(x=timepoint, y=correlation, color=Dosage)) + geom_point(alpha=0.9) + 
+  labs(x="Time Point", y="Correlation") +
+  ggtitle("Observation of Correlation 
+      Between NGFR and AXL Over Time") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size=6), text = element_text(size=6))
+
+timepoints <- 7
+dosages <- 5
+correlations <- rep(NA, 35)
+dosages <- c(rep(1, 7), rep(2, 7), rep(3, 7), rep(4, 7), rep(5, 7))
+times <- rep(1:7, 5)
+
+for(i in 1:5){
+  for(j in 1:7){
+    cor_data <- MiTFg_Sox10 %>% filter(dose_id == i & timepoint_id == j)
+
+    correlations[7 * (i - 1) + (j)] <- cor(cor_data$MiTFg, cor_data$Sox10)
+  }
+}
+
+MiTFg_Sox10_cors <- tibble(correlation=correlations, Dosage=dosages, timepoint=times)
+  
+MiTFg_Sox10_cors %>% ggplot(aes(x=timepoint, y=correlation, color=Dosage)) + geom_point(alpha=0.9) + 
+  labs(x="Time Point", y="Correlation") +
+  ggtitle("Observation of Correlation 
+      Between MiTFg and Sox10 Over Time") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size=6), text = element_text(size=6))
+```
+
+---
+
+## Overall Results
+
+**Q1/Q2**
+- Through these statistical analyses, we conclude that both an increase in time as well as dosage produce greater changes in the level of the outcome proteins, as well as more statistically significant ones.
+
+**Q3/META**
+- We also conclude that as time passes, the correlation between MiTFg and Sox10, as well as NGFR and AXL, decreases. At lower dosages, the correlation seems to decrease at a faster rate, than compared to higher dosages.
+
+**Real-World Application**
+- As we have identified factors that seem to create statistically significant change in the levels of MiTFg, whether that be through time or dosage, this means that we are capable of influencing cellular homeostasis as the balance between the proteins will have changed. Additionally, we know that if we want to influence Sox10, we should not influence MiTFg, since as time passes, the correlation reaches 0, indicating any changes in MiTFg will not be proportionally reflected in Sox10. Through these results, we may be able to transition non-deleterious cellular states into deleterious states or vice versa, perhaps allowing us to play a role in cellular homeostasis.
+
+---
+
+## Limitations and Shortcomings
+
+1. As the data used were cleaned according to the purpose of our analysis, the results concluded from our observations may not hold true for the rest of the data that was unused. Therefore, our observations about the possibility of intervening in cellular homeostasis can only be generalized to the proteins covered by our data.
+
+2. The overall data was sampled from a batch of cells, instead of a single cell. Therefore, the same cell was not measured over and over across time. Since the experimental conditions were applied to groups of cells, we must assume that these groups of cells were split to be small enough to represent each individual cell undergoing cellular homeostasis.
+
+---
+
+## Thank you
